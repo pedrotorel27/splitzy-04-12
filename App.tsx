@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { HashRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { Dashboard } from './pages/Dashboard';
 import { CreateTest } from './pages/CreateTest';
@@ -6,8 +6,17 @@ import { TestDetails } from './pages/TestDetails';
 import { RedirectHandler } from './pages/RedirectHandler';
 import { SimulatedLanding } from './pages/SimulatedLanding';
 import { Instructions } from './pages/Instructions';
+import { initializeStorageListener } from './services/storageService';
 
 const App: React.FC = () => {
+  
+  useEffect(() => {
+    // Initialize connection to Firebase Realtime Database
+    initializeStorageListener((tests) => {
+      console.log('Splitzy: Synced with Firebase', tests.length, 'tests loaded');
+    });
+  }, []);
+
   return (
     <HashRouter>
       <Routes>

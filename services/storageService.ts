@@ -1,20 +1,39 @@
+import { db, TEST_STORAGE_PATH } from './firebaseService';
+import { ref, set, onValue, remove, runTransaction } from 'firebase/database';
 import { ABTest } from '../types';
 
-const STORAGE_KEY = 'splitzy_tests';
+let localTests: ABTest[] = [];
+
+// Initialize Realtime Listener
+export const initializeStorageListener = (callback?: (tests: ABTest[]) => void) => {
+  const testsRef = ref(db, TEST_STORAGE_PATH);
+  
+  onValue(testsRef, (snapshot) => {
+    const data = snapshot.val();
+    if (data) {
+      // Convert object { id: test } to array [test, test]
+      localTests = Object.values(data);
+    } else {
+      localTests = [];
+    }
+    if (callback) callback(localTests);
+  });
+};
 
 export const getTests = (): ABTest[] => {
-  const stored = localStorage.getItem(STORAGE_KEY);
-  return stored ? JSON.parse(stored) : [];
+  return localTests;
+};
+
+export const getTestById = (id: string): ABTest | undefined => {
+  return localTests.find(t => t.id === id);
 };
 
 export const saveTest = (test: ABTest): void => {
-  const tests = getTests();
   // Ensure events object exists
   if (!test.events) test.events = {};
   
   // Generate Mock Funnel Data for demonstration if it's a new test
   if (Object.keys(test.events).length === 0) {
-      // Simulating a Quiz Funnel
       test.events = {
           'quiz_start': { A: 0, B: 0 },
           'question_1': { A: 0, B: 0 },
@@ -23,83 +42,67 @@ export const saveTest = (test: ABTest): void => {
       };
   }
   
-  tests.push(test);
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(tests));
+  const testRef = ref(db, `${TEST_STORAGE_PATH}/${test.id}`);
+  set(testRef, test);
 };
 
 export const updateTest = (updatedTest: ABTest): void => {
-  const tests = getTests();
-  const index = tests.findIndex(t => t.id === updatedTest.id);
-  if (index !== -1) {
-    tests[index] = updatedTest;
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(tests));
-  }
-};
-
-export const getTestById = (id: string): ABTest | undefined => {
-  const tests = getTests();
-  const test = tests.find(t => t.id === id);
-  if (test && !test.events) {
-      test.events = {}; // Migration for old tests
-  }
-  return test;
+  const testRef = ref(db, `${TEST_STORAGE_PATH}/${updatedTest.id}`);
+  set(testRef, updatedTest);
 };
 
 export const deleteTest = (id: string): void => {
-  const tests = getTests().filter(t => t.id !== id);
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(tests));
+  const testRef = ref(db, `${TEST_STORAGE_PATH}/${id}`);
+  remove(testRef);
 };
 
-// Simulation of tracking updates
+// Simulation of tracking updates using Transactions for Atomic consistency
 export const recordVisit = (testId: string, variant: 'A' | 'B'): void => {
-  const test = getTestById(testId);
-  if (!test || test.status !== 'active') return;
+  const testRef = ref(db, `${TEST_STORAGE_PATH}/${testId}`);
 
-  if (variant === 'A') {
-    test.visitsA += 1;
-    // Mock funnel drop-off logic for demo
-    if (Math.random() > 0.1) recordEvent(testId, variant, 'quiz_start');
-  } else {
-    test.visitsB += 1;
-    if (Math.random() > 0.1) recordEvent(testId, variant, 'quiz_start');
-  }
-  updateTest(test);
+  runTransaction(testRef, (test) => {
+    if (test && test.status === 'active') {
+      if (variant === 'A') {
+        test.visitsA = (test.visitsA || 0) + 1;
+      } else {
+        test.visitsB = (test.visitsB || 0) + 1;
+      }
+      return test;
+    }
+    return test;
+  }).then(() => {
+     // Trigger Mock Funnel Event (Fire and forget)
+     if (Math.random() > 0.1) recordEvent(testId, variant, 'quiz_start');
+  });
 };
 
 export const recordConversion = (testId: string, variant: 'A' | 'B'): void => {
-  const test = getTestById(testId);
-  if (!test || test.status !== 'active') return;
+  const testRef = ref(db, `${TEST_STORAGE_PATH}/${testId}`);
 
-  if (variant === 'A') {
-    test.conversionsA += 1;
-  } else {
-    test.conversionsB += 1;
-  }
-  updateTest(test);
+  runTransaction(testRef, (test) => {
+    if (test && test.status === 'active') {
+       if (variant === 'A') {
+        test.conversionsA = (test.conversionsA || 0) + 1;
+      } else {
+        test.conversionsB = (test.conversionsB || 0) + 1;
+      }
+      return test;
+    }
+    return test;
+  });
 };
 
 export const recordEvent = (testId: string, variant: 'A' | 'B', eventName: string): void => {
-    const test = getTestById(testId);
-    if (!test || test.status !== 'active') return;
+    // We target the specific event path to avoid rewriting the whole test object excessively
+    const eventRef = ref(db, `${TEST_STORAGE_PATH}/${testId}/events/${eventName}/${variant}`);
 
-    if (!test.events) test.events = {};
-    if (!test.events[eventName]) {
-        test.events[eventName] = { A: 0, B: 0 };
-    }
-
-    if (variant === 'A') {
-        test.events[eventName].A += 1;
-        // Cascading mock logic for demo purposes
+    runTransaction(eventRef, (currentValue) => {
+        return (currentValue || 0) + 1;
+    }).then(() => {
+        // Mock Chained Events logic for Demo
+        // Note: In a real app, these would be separate calls from the client
         if (eventName === 'quiz_start' && Math.random() > 0.3) recordEvent(testId, variant, 'question_1');
         if (eventName === 'question_1' && Math.random() > 0.4) recordEvent(testId, variant, 'question_2');
         if (eventName === 'question_2' && Math.random() > 0.5) recordEvent(testId, variant, 'lead_captured');
-    } else {
-        test.events[eventName].B += 1;
-        // B performs slightly better in this mock
-        if (eventName === 'quiz_start' && Math.random() > 0.25) recordEvent(testId, variant, 'question_1');
-        if (eventName === 'question_1' && Math.random() > 0.35) recordEvent(testId, variant, 'question_2');
-        if (eventName === 'question_2' && Math.random() > 0.45) recordEvent(testId, variant, 'lead_captured');
-    }
-    
-    updateTest(test);
+    });
 };
