@@ -1,12 +1,12 @@
 import { initializeApp } from "firebase/app";
 import { getDatabase } from "firebase/database";
 
-// CONFIGURAÇÃO CORRIGIDA: Usa os nomes exatos que estão no Vercel
+// LIGAÇÃO DIRETA: Chaves colocadas manualmente para destravar o app
 const firebaseConfig = {
-  apiKey: import.meta.env.VITE_API_KEY,
-  authDomain: import.meta.env.VITE_AUTH_DOMAIN,
-  databaseURL: import.meta.env.VITE_DATABASE_URL,
-  projectId: import.meta.env.VITE_PROJECT_ID,
+  apiKey: "AIzaSyA0dausZrMGYXYErhZ5VQIyp-HHrM__Q6M",
+  authDomain: "splitzy-41e46.firebaseapp.com",
+  databaseURL: "https://splitzy-41e46-default-rtdb.firebaseio.com",
+  projectId: "splitzy-41e46",
   storageBucket: "splitzy-41e46.firebasestorage.app",
   messagingSenderId: "871745699782",
   appId: "1:871745699782:web:3162131828d5595a66bcc7",
