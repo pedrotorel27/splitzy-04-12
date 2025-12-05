@@ -6,15 +6,13 @@ import { TestDetails } from './pages/TestDetails';
 import { RedirectHandler } from './pages/RedirectHandler';
 import { SimulatedLanding } from './pages/SimulatedLanding';
 import { Instructions } from './pages/Instructions';
+// Importamos a função que liga o Firebase
 import { initializeStorageListener } from './services/storageService';
 
 const App: React.FC = () => {
-  
+  // UseEffect: Roda uma vez quando o app inicia para ligar a escuta do banco de dados
   useEffect(() => {
-    // Initialize connection to Firebase Realtime Database
-    initializeStorageListener((tests) => {
-      console.log('Splitzy: Synced with Firebase', tests.length, 'tests loaded');
-    });
+    initializeStorageListener();
   }, []);
 
   return (
@@ -25,10 +23,10 @@ const App: React.FC = () => {
         <Route path="/test/:id" element={<TestDetails />} />
         <Route path="/instructions" element={<Instructions />} />
         
-        {/* The Magic Link Route */}
+        {/* Rota do Link Mágico que divide o tráfego */}
         <Route path="/go/:id" element={<RedirectHandler />} />
         
-        {/* Simulated Landing Pages for Demo Purposes */}
+        {/* Páginas de demonstração */}
         <Route path="/demo/a/:id" element={<SimulatedLanding variant="A" />} />
         <Route path="/demo/b/:id" element={<SimulatedLanding variant="B" />} />
         
